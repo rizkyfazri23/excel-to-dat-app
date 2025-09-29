@@ -27,7 +27,7 @@
             <div class="w-full sm:max-w-md bg-white px-6 py-8 shadow-lg rounded-lg">
                 <!-- Session Status -->
                 @if (session('status'))
-                    <div class="mb-4 text-sm fon    t-medium text-green-600">
+                    <div class="mb-4 text-sm font-medium text-green-600">
                         {{ session('status') }}
                     </div>
                 @endif
