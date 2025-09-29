@@ -1,25 +1,32 @@
 #!/usr/bin/env bash
 set -e
 
-# Honor provided PORT (Render/other PaaS); default 8000
+# Hormati PORT dari PaaS (Render/Heroku/etc)
 PHP_PORT="${PORT:-8000}"
 
-# Ensure APP_KEY exists (generate if missing and .env is present)
+# Kalau APP_KEY belum ada, coba generate (idempotent)
 if [ -z "${APP_KEY}" ] || [[ "${APP_KEY}" == base64:* && ${#APP_KEY} -lt 16 ]]; then
   if [ -f .env ]; then
     php artisan key:generate --force || true
   fi
 fi
 
-# Storage symlink (idempotent)
+# Pastikan dependency env ada (opsional, biar verbose di log)
+php --version
+php -m | grep -E "intl|mbstring|zip|gd|pdo_pgsql|pdo_mysql" || true
+
+# Symlink storage (idempotent)
 php artisan storage:link || true
 
-# Cache config/routes/views
+# Discover packages (ini yang tadinya gagal di build)
+php artisan package:discover --ansi || true
+
+# Cache config/routes/views (ignore error agar tidak crash kalau pertama kali)
 php artisan config:cache || true
 php artisan route:cache || true
 php artisan view:cache || true
 
-# Run migrations (toggle via RUN_MIGRATIONS=0 to skip)
+# Jalankan migrasi (bisa dimatikan via RUN_MIGRATIONS=0)
 if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
   php artisan migrate --force || true
 fi

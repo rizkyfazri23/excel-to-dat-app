@@ -8,14 +8,14 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_NO_INTERACTION=1
 ENV COMPOSER_MEMORY_LIMIT=-1
 
-# System dependencies for PHP extensions
+# System deps for PHP extensions & composer
 # - intl      : libicu-dev
 # - zip       : libzip-dev
 # - pgsql     : libpq-dev
 # - gd        : libfreetype6-dev libjpeg62-turbo-dev libpng-dev
 # - mbstring  : libonig-dev (oniguruma)
-# - pkg-config: detect libs during configure
-# - git/unzip/zip: needed by composer
+# - pkg-config: helps configure checks
+# - git/unzip/zip: composer helpers
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git unzip zip pkg-config \
     libicu-dev libzip-dev libpq-dev \
@@ -27,27 +27,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pdo pdo_pgsql pdo_mysql gd \
  && rm -rf /var/lib/apt/lists/*
 
-# Install Composer
+# Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
-# Copy composer files first for better layer caching
+# 1) Copy composer files dulu (agar layer cache efektif)
 COPY composer.json composer.lock ./
 
-# Install PHP deps (no dev); optimize autoload; no progress for quieter logs
-RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-progress
+# 2) Install dependencies TANPA scripts (artisan belum ada di tahap ini)
+RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-progress --no-scripts
 
-# Copy entire application
+# 3) Copy seluruh source code
 COPY . .
 
-# Optimize autoload once full source is present
+# 4) Optimize autoload (tanpa scripts juga agar build tidak menjalankan artisan)
 RUN composer dump-autoload -o
 
-# Ensure storage & cache are writable
+# Permission untuk storage & cache
 RUN chown -R www-data:www-data storage bootstrap/cache || true
 
-# Start script
+# Start script saat runtime (semua artisan dijalankan di sini)
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
