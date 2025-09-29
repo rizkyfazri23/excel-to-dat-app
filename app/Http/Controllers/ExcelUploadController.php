@@ -22,55 +22,66 @@ class ExcelUploadController extends Controller
             'format_type.required'=> 'Please select a format (1–6).',
         ]);
 
-        $path = $request->file('excel_file')->store('uploads');
-        $absolutePath = Storage::path($path);
+        // Ambil file dari temp path (stabil lintas OS)
+        $uploaded   = $request->file('excel_file');
+        $tempPath   = $uploaded->getRealPath();
+        $clientName = $uploaded->getClientOriginalName();
 
         try {
-            if (!file_exists($absolutePath)) {
-                Storage::delete($path);
-                return back()->with('error', "Uploaded file not found at: {$absolutePath}.")->withInput();
+            if (! $tempPath || ! file_exists($tempPath)) {
+                return back()->with('error', 'Uploaded file temporary path not found.')->withInput();
             }
 
-            $spreadsheet = IOFactory::load($absolutePath);
+            // Baca Excel langsung dari temp
+            $spreadsheet = IOFactory::load($tempPath);
             $sheet       = $spreadsheet->getActiveSheet();
             $rows        = $sheet->toArray(null, true, true, true);
 
+            // Parse → struktur internal
             $format = (int) $request->input('format_type');
             $parsed = $this->parseExcelToStructure($rows, $format);
-
             if (empty($parsed['header']) || empty($parsed['details'])) {
-                Storage::delete($path);
                 return back()->with('error', 'Parsed data is empty. Please check your Excel template/mapping.')
-                             ->withInput();
+                            ->withInput();
             }
 
+            // Build konten .DAT
             $datContent = $this->buildDatContent($parsed);
 
-            // Nama file: {TIN}S{MM}{YYYY}.DAT
+            // Nama file output: {TIN}S{MM}{YYYY}.DAT
             $ownerTin = preg_replace('/[^0-9]/', '', ($parsed['header']['tin'] ?? 'TIN'));
             $period   = $parsed['header']['period_end'] ?? '01/01/1970'; // mm/dd/yyyy
             $mm       = date('m', strtotime($period));
             $yyyy     = date('Y', strtotime($period));
             $fileName = sprintf('%sS%s%s.DAT', $ownerTin, $mm, $yyyy);
 
-            $savePath = "exports/{$fileName}";
-            
+            // Activity log
             ActivityLog::create([
-                'user'   => Auth::check() ? Auth::user()->username : 'guest',
-                'action' => 'Generate DAT',
-                'details'=> 'Generated file: '.$fileName.' from '.$request->file('excel_file')->getClientOriginalName()
+                'user'    => Auth::check() ? Auth::user()->username : 'guest',
+                'action'  => 'Generate DAT',
+                'details' => 'Generated file: '.$fileName.' from '.$clientName,
             ]);
 
-            Storage::delete($path);
-
-            return response()->download(Storage::path($savePath))->deleteFileAfterSend(true);
+            // LANGSUNG STREAM — TANPA MENYIMPAN KE DISK
+            return response()->streamDownload(
+                function () use ($datContent) {
+                    echo $datContent;
+                },
+                $fileName,
+                [
+                    'Content-Type'        => 'text/plain; charset=UTF-8',
+                    'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+                    'Cache-Control'       => 'no-store, no-cache, must-revalidate, max-age=0',
+                ]
+            );
 
         } catch (\Throwable $e) {
-            Storage::delete($path);
             report($e);
             return back()->with('error', 'Failed converting Excel to .DAT: '.$e->getMessage())->withInput();
         }
     }
+
+
 
     /**
      * Parser yang meniru persis struktur "Source".

@@ -1,98 +1,147 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="csrf-token" content="{{ csrf_token() }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'Laravel') }}</title>
+  <title>{{ config('app.name', 'Laravel') }} — Login</title>
 
-        <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.bunny.net">
+  <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
-        <!-- Scripts -->
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    </head>
-    <body class="font-sans text-gray-900 antialiased">
-        <div class="min-h-screen flex flex-col justify-center items-center bg-blue-300">
-            <!-- Logo -->
-            <div class="mb-6">
-                <a href="#">
-                    <img src="{{ asset('dist/img/logo.png') }}" width="400" height="32" alt="Tracking Tools" class="navbar-brand-image">
-                </a>
+  <!-- Tabler CSS (statis dari public/dist) -->
+  <link href="{{ asset('dist/css/tabler.min.css') }}" rel="stylesheet"/>
+  <link href="{{ asset('dist/css/tabler-flags.min.css') }}" rel="stylesheet"/>
+  <link href="{{ asset('dist/css/tabler-payments.min.css') }}" rel="stylesheet"/>
+  <link href="{{ asset('dist/css/tabler-vendors.min.css') }}" rel="stylesheet"/>
+  <link href="{{ asset('dist/css/demo.min.css') }}" rel="stylesheet"/>
+  <link href="{{ asset('icon/webfont/tabler-icons.min.css') }}" rel="stylesheet"/>
+
+  <style>
+    :root { --login-card-width: 420px; }
+    body { font-family: 'Figtree', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'; }
+    .login-wrapper {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(180deg, #e8f1ff 0%, #cfe2ff 100%);
+    }
+    .login-card { width: min(100%, var(--login-card-width)); }
+    .brand img { max-width: 260px; height: auto; }
+    .form-label .required::after { content:" *"; color:#dc3545; }
+  </style>
+</head>
+<body>
+  <div class="login-wrapper">
+    <div class="container-tight py-6">
+      <!-- Brand / Logo -->
+      <div class="text-center mb-4 brand">
+        <a href="{{ url('/') }}" class="navbar-brand">
+          <img src="{{ asset('dist/img/logo.png') }}" alt="{{ config('app.name') }}">
+        </a>
+      </div>
+
+      <!-- Card -->
+      <div class="card shadow-sm login-card mx-auto">
+        <div class="card-body p-4 p-sm-5">
+          <h2 class="card-title text-center mb-4">Sign in</h2>
+
+          {{-- Global session status / flash --}}
+          @if (session('status'))
+            <div class="alert alert-success" role="alert">
+              {{ session('status') }}
+            </div>
+          @endif
+
+          {{-- Global auth error --}}
+          @if ($errors->any() && !$errors->has('username') && !$errors->has('password'))
+            <div class="alert alert-danger" role="alert">
+              {{ __('Login failed. Please check your credentials.') }}
+            </div>
+          @endif
+
+          <form action="{{ route('login.post') }}" method="POST" novalidate>
+            @csrf
+
+            {{-- Username --}}
+            <div class="mb-3">
+              <label for="username" class="form-label required">{{ __('Username') }}</label>
+              <input
+                id="username"
+                type="text"
+                name="username"
+                value="{{ old('username') }}"
+                autocomplete="username"
+                autofocus
+                class="form-control @error('username') is-invalid @enderror"
+                placeholder="Enter your username">
+              @error('username')
+                <div class="invalid-feedback">{{ $message }}</div>
+              @enderror
             </div>
 
-            <!-- Login Form -->
-            <div class="w-full sm:max-w-md bg-white px-6 py-8 shadow-lg rounded-lg">
-                <!-- Session Status -->
-                @if (session('status'))
-                    <div class="mb-4 text-sm font-medium text-green-600">
-                        {{ session('status') }}
-                    </div>
-                @endif
-
-                <!-- Login Form -->
-                <form action="{{ route('login.post') }}" method="POST">
-                    @csrf
-
-                    <!-- Email Address -->
-                    <div>
-                        <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ __('username') }}
-                        </label>
-                        <input id="username" type="username" name="username" value="{{ old('username') }}" required autofocus autocomplete="username" 
-                            class="block w-full border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm px-3 py-2">
-                        @error('username')
-                            <span class="text-red-600 text-sm mt-2">{{ $message }}</span>
-                        @enderror
-                    </div>
-
-                    <!-- Password -->
-                    <div class="mt-4">
-                        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ __('Password') }}
-                        </label>
-                        <input id="password" type="password" name="password" required autocomplete="current-password" 
-                            class="block w-full border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm px-3 py-2">
-                        @error('password')
-                            <span class="text-red-600 text-sm mt-2">{{ $message }}</span>
-                        @enderror
-                    </div>
-
-                    {{-- <!-- Captcha -->
-                    <div class="mt-4">
-                        <img src="{{ captcha_src() }}" 
-                            alt="Captcha Image" 
-                            class="mt-2 mx-auto cursor-pointer" 
-                            id="captcha-img" 
-                            onclick="this.src = this.src.split('?')[0] + '?' + Date.now()">
-                        <label for="captcha" class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ __('Captcha') }}
-                        </label>
-                        <input id="captcha" type="text" name="captcha" required 
-                            class="block w-full border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm px-3 py-2">
-                        @error('captcha')
-                            <span class="text-red-600 text-sm mt-2">{{ $message }}</span>
-                        @enderror
-                    </div> --}}
-
-                    <!-- Login Buttons -->
-                    <div class="flex items-center justify-end mt-4">
-                        @if (Route::has('password.request'))
-                            <a class="text-sm text-gray-600 hover:text-gray-900" href="{{ route('password.request') }}">
-                                {{ __('Forgot your password?') }}
-                            </a>
-                        @endif
-
-                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
-                            {{ __('Log in') }}
-                        </button>
-                    </div>
-                </form>
+            {{-- Password --}}
+            <div class="mb-2">
+              <label for="password" class="form-label required">{{ __('Password') }}</label>
+              <div class="input-group input-group-flat">
+                <input
+                  id="password"
+                  type="password"
+                  name="password"
+                  autocomplete="current-password"
+                  class="form-control @error('password') is-invalid @enderror"
+                  placeholder="Enter your password">
+                <span class="input-group-text">
+                  <a href="#" class="link-secondary" tabindex="-1" id="togglePass" aria-label="Toggle password visibility">
+                    <i class="ti ti-eye"></i>
+                  </a>
+                </span>
+                @error('password')
+                  <div class="invalid-feedback d-block">{{ $message }}</div>
+                @enderror
+              </div>
             </div>
+
+            {{-- Remember me + forgot password --}}
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <label class="form-check m-0">
+                <input type="checkbox" class="form-check-input" name="remember" {{ old('remember') ? 'checked' : '' }}>
+                <span class="form-check-label">{{ __('Remember me') }}</span>
+              </label>
+              @if (Route::has('password.request'))
+                <a class="link-secondary" href="{{ route('password.request') }}">{{ __('Forgot your password?') }}</a>
+              @endif
+            </div>
+
+            {{-- Submit --}}
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">
+                <i class="ti ti-login-2 me-1"></i> {{ __('Log in') }}
+              </button>
+            </div>
+          </form>
         </div>
-    </body>
+      </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+      {{-- Footer small note (optional) --}}
+      <div class="text-center text-secondary mt-4 small">
+        &copy; {{ date('Y') }} {{ config('app.name') }}. All rights reserved.
+      </div>
+    </div>
+  </div>
+
+  <!-- JS minimal & tanpa Vite -->
+  <script>
+    // Toggle password visibility
+    document.getElementById('togglePass')?.addEventListener('click', function (e) {
+      e.preventDefault();
+      const input = document.getElementById('password');
+      if (!input) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+      this.innerHTML = input.type === 'password' ? '<i class="ti ti-eye"></i>' : '<i class="ti ti-eye-off"></i>';
+    });
+  </script>
+</body>
 </html>

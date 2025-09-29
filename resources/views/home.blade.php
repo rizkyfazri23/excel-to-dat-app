@@ -1,4 +1,4 @@
-@extends('Layouts.app')
+@extends('layouts.app')
 
 @push('styles')
 <style>
@@ -8,7 +8,7 @@
 @endpush
 
 @section('content')
-@include('Layouts.topbar')
+@include('layouts.topbar')
 
 <div class="page-header d-print-none">
   <div class="container-xl">
