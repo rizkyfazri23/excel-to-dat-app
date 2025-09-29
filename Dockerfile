@@ -1,45 +1,53 @@
-# -----------------------------
-# Runtime image (Debian, lebih stabil)
-# -----------------------------
+# =========================================================
+# Laravel on PHP 8.3 (Debian bookworm) – with GD & Postgres
+# =========================================================
 FROM php:8.3-cli-bookworm
 
-# Non-interactive APT
 ENV DEBIAN_FRONTEND=noninteractive
 ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_NO_INTERACTION=1
+# Hindari OOM saat composer install
+ENV COMPOSER_MEMORY_LIMIT=-1
 
-# System deps (git, unzip, zip, ICU untuk intl, libpq untuk pgsql, libzip)
+# System dependencies for PHP extensions
+# - intl      : libicu-dev
+# - zip       : libzip-dev
+# - pgsql     : libpq-dev
+# - gd        : libfreetype6-dev libjpeg62-turbo-dev libpng-dev
+# - git/unzip/zip: required by composer
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git unzip zip libicu-dev libzip-dev libpq-dev \
- && docker-php-ext-install intl zip pdo pdo_pgsql pdo_mysql \
+    git unzip zip \
+    libicu-dev libzip-dev libpq-dev \
+    libfreetype6-dev libjpeg62-turbo-dev libpng-dev \
+ && docker-php-ext-configure gd --with-freetype --with-jpeg \
+ && docker-php-ext-install -j"$(nproc)" \
+    intl zip mbstring bcmath exif pcntl \
+    pdo pdo_pgsql pdo_mysql gd \
  && rm -rf /var/lib/apt/lists/*
 
-# Install Composer (copy dari official image)
+# Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
-# Copy hanya file composer dulu supaya cache build efektif
+# Copy composer files first for better layer caching
 COPY composer.json composer.lock ./
 
-# Install dependencies PHP (tanpa dev)
-RUN composer install --no-dev --prefer-dist --optimize-autoloader
+# Install PHP deps (no dev); allow scripts (default) so packages can wire themselves if needed
+RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-progress
 
-# Copy seluruh source code
+# Copy the whole application
 COPY . .
 
-# (Optional) Re-run composer untuk autoload optimize setelah source full
+# Optimize autoloader once full source is present
 RUN composer dump-autoload -o
 
-# Permissions untuk storage & cache (jika perlu)
+# Ensure storage & cache are writable
 RUN chown -R www-data:www-data storage bootstrap/cache || true
 
-# Copy start script (harus executable di git; jika perlu, chmod lagi di sini)
+# Start script
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
-# Expose (Render pakai env PORT, jadi EXPOSE hanya dokumentasi)
 EXPOSE 8000
-
-# Jalankan start script (handle key, cache, migrate, serve)
 CMD ["/usr/local/bin/start.sh"]
