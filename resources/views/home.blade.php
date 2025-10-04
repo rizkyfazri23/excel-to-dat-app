@@ -63,8 +63,8 @@
               <div class="col">
                 <select class="form-select" id="format_type" name="format_type" required>
                   <option value="" disabled selected>-- Choose Format --</option>
-                  <option value="1" {{ old('format_type')=='1'?'selected':'' }}>Format 1</option>
-                  <option value="2" {{ old('format_type')=='2'?'selected':'' }}>Format 2</option>
+                  <option value="1" {{ old('format_type')=='1'?'selected':'' }}>Format 1 - Sales</option>
+                  <option value="2" {{ old('format_type')=='2'?'selected':'' }}>Format 2 - Purchases</option>
                   <option value="3" {{ old('format_type')=='3'?'selected':'' }}>Format 3</option>
                   <option value="4" {{ old('format_type')=='4'?'selected':'' }}>Format 4</option>
                   <option value="5" {{ old('format_type')=='5'?'selected':'' }}>Format 5</option>
