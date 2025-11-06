@@ -45,23 +45,28 @@ class ExcelUploadController extends Controller
             $datContent = $this->buildDatByFormat($parsed, $format);
 
             // Nama file: {TIN}S{MM}{YYYY}.DAT (mengikuti sample saat ini)
-            $ownerTin = preg_replace('/[^0-9]/', '', ($parsed['header']['tin'] ?? 'TIN'));
-            $period   = $parsed['header']['period_end'] ?? '01/01/1970'; // mm/dd/YYYY
-            $ts       = strtotime($period);
-            $mm       = $ts ? date('m', $ts) : '01';
-            $yyyy     = $ts ? date('Y', $ts) : '1970';
+            $ownerTin = preg_replace('/\D/', '', $parsed['header']['tin'] ?? 'TIN');
+            $period   = $parsed['header']['period_end'] ?? $parsed['header']['month'] ?? $parsed['header']['period'] ?? '01/01/1970';
+
+            if (($format === 3 || $format === 4 || $format === 5) && preg_match('/^(\d{2})\/(\d{4})$/', $period, $m)) {
+                [$mm, $yyyy] = [$m[1], $m[2]];
+            } else {
+                $ts = strtotime($period);
+                $mm = $ts ? date('m', $ts) : '01';
+                $yyyy = $ts ? date('Y', $ts) : '1970';
+            }
 
             $code = match ($format) {
-                1 => 'S',   // Sales
-                2 => 'P',   // Purchases
-                3 => 'F3',
-                4 => 'F4',
-                5 => 'F5',
+                1 => "S{$mm}{$yyyy}",
+                2 => "P{$mm}{$yyyy}",
+                3 => "0000{$mm}{$yyyy}1702Q",
+                4 => "0000{$mm}{$yyyy}1701Q",
+                5 => "0000{$mm}{$yyyy}1601EQ",
                 6 => 'F6',
                 default => throw new \RuntimeException("Unknown format {$format}."),
             };
 
-            $fileName = sprintf('%s%s%s%s.DAT', $ownerTin, $code, $mm, $yyyy);
+            $fileName = sprintf('%s%s.DAT', $ownerTin, $code);
 
             ActivityLog::create([
                 'user'    => Auth::check() ? Auth::user()->username : 'guest',
@@ -667,12 +672,11 @@ class ExcelUploadController extends Controller
                 $d['tin'],
                 '0000',
                 $this->q($d['corp']),
-                $this->q(''),
-                $this->q(''),
-                $this->q(''),
-                $this->q(''),
+                '',
+                '',
+                '',
                 $parsed['header']['month'], // paksa sama dg header
-                $this->q(''),
+                '',
                 $d['atc'],
                 $this->n($d['taxrate']),
                 $this->n($d['amount']),
@@ -883,12 +887,11 @@ class ExcelUploadController extends Controller
                 $d['tin'],
                 '0000',
                 $this->q($d['corp']),
-                $this->q(''),
-                $this->q(''),
-                $this->q(''),
-                $this->q(''),
+                '',
+                '',
+                '',
                 $h['month'],          // samakan semua dgn header
-                $this->q(''),
+                '',
                 $d['atc'],
                 $this->n($d['taxrate']),
                 $this->n($d['amount']),
@@ -1085,7 +1088,7 @@ class ExcelUploadController extends Controller
                 $d['tin'],
                 $d['branch'],
                 $this->q($d['name']),
-                '', '', '', '',               // 4 kolom kosong
+                '', '', '',                
                 $d['period'],
                 $d['atc'],
                 $this->n($d['rate']),
