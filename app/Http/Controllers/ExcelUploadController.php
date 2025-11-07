@@ -46,11 +46,20 @@ class ExcelUploadController extends Controller
 
             // Nama file: {TIN}S{MM}{YYYY}.DAT (mengikuti sample saat ini)
             $ownerTin = preg_replace('/\D/', '', $parsed['header']['tin'] ?? 'TIN');
-            $period   = $parsed['header']['period_end'] ?? $parsed['header']['month'] ?? $parsed['header']['period'] ?? '01/01/1970';
-
-            if (($format === 3 || $format === 4 || $format === 5) && preg_match('/^(\d{2})\/(\d{4})$/', $period, $m)) {
+            $period   = $parsed['header']['period_end'] ?? $parsed['header']['month'] ?? $parsed['header']['period'] ?? $parsed['header']['date'] ?? '01/01/1970';
+            
+            if (($format === 3 || $format === 4 || $format === 5 ) && preg_match('/^(\d{2})\/(\d{4})$/', $period, $m)) {
                 [$mm, $yyyy] = [$m[1], $m[2]];
-            } else {
+            } else if ($format === 6) {
+                if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $period, $m)) {
+                    [$mm, $dd, $yyyy] = [$m[1], $m[2], $m[3]];
+                } else {
+                    $ts = strtotime($period);
+                    $dd = $ts ? date('d', $ts) : '01';
+                    $mm = $ts ? date('m', $ts) : '01';
+                    $yyyy = $ts ? date('Y', $ts) : '1970';
+                }
+            }else {
                 $ts = strtotime($period);
                 $mm = $ts ? date('m', $ts) : '01';
                 $yyyy = $ts ? date('Y', $ts) : '1970';
@@ -62,7 +71,7 @@ class ExcelUploadController extends Controller
                 3 => "0000{$mm}{$yyyy}1702Q",
                 4 => "0000{$mm}{$yyyy}1701Q",
                 5 => "0000{$mm}{$yyyy}1601EQ",
-                6 => 'F6',
+                6 => "0000{$mm}{$dd}{$yyyy}1604E",
                 default => throw new \RuntimeException("Unknown format {$format}."),
             };
 
