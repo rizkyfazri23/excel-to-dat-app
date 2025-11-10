@@ -13,7 +13,7 @@ class AuthController extends Controller
 {
     public function login(Request $request)
     {
-        // Validasi input termasuk captcha
+        // Validasi basic
         $validator = Validator::make($request->all(), [
             'username' => 'required',
             'password' => 'required',
@@ -26,29 +26,30 @@ class AuthController extends Controller
         $user = User::where('username', $request->username)->first();
 
         if (!$user) {
-            return back()->withErrors(['username' => 'User tidak ditemukan'])->withInput();
+            return back()
+                ->withErrors(['username' => 'User Not Found'])
+                ->withInput();
         }
 
-        if ($user->password === md5($request->password)) {
-            $user->password = Hash::make($request->password);
-            $user->save();
+        if (!Hash::check($request->password, $user->password)) {
+            return back()
+                ->withErrors(['username' => 'Incorrect Username or Password!'])
+                ->withInput();
         }
 
-        if (Hash::check($request->password, $user->password)) {
-            Auth::login($user);
-            $request->session()->regenerate();
+        $remember = $request->boolean('remember');
 
-            ActivityLog::create([
-                'user'   => $user->username,
-                'action' => 'Login',
-                'details'=> 'User '.$user->username.' berhasil login.'
-            ]);
+        Auth::login($user, $remember);
 
-            // dd(Auth::user());
-            return redirect()->intended('/'); 
-        }
+        $request->session()->regenerate();
 
-        return back()->withErrors(['username' => 'Username atau password salah'])->withInput();
+        ActivityLog::create([
+            'user'    => $user->username,
+            'action'  => 'Login',
+            'details' => 'User '.$user->username.' Successfully Login.',
+        ]);
+
+        return redirect()->intended('/');
     }
 
     
@@ -66,6 +67,37 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/login')->with('success', 'Berhasil logout');
+        return redirect('/login')->with('success', 'Logout Successfully!');
+    }
+
+    public function showChangePasswordForm()
+    {
+        return view('auth.change-password');
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'current_password'      => 'required',
+            'new_password'          => 'required|min:8|confirmed',
+        ], [
+            'new_password.confirmed' => 'Password confirmation does not match.',
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator);
+        }
+
+        $user = Auth::user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->new_password),
+        ]);
+
+        return back()->with('status', 'Password successfully updated!');
     }
 }

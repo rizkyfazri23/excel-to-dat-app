@@ -41,11 +41,6 @@
           </a>
           <!-- Dropdown Menu -->
           <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-            <a href="#" class="dropdown-item">Status</a>
-            <a href="./profile.html" class="dropdown-item">Profile</a>
-            <a href="#" class="dropdown-item">Feedback</a>
-            <div class="dropdown-divider"></div>
-            <a href="./settings.html" class="dropdown-item">Settings</a>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" class="dropdown-item">Logout</button>
@@ -59,27 +54,41 @@
     <div class="collapse navbar-collapse" id="navbar-menu">
       <div class="navbar">
         <div class="container-xl">
-            <ul class="navbar-nav d-flex flex-row gap-4">
-                <!-- Menu Home -->
-                <li class="nav-item">
-                    <a class="nav-link d-flex align-items-center gap-2" href="#" aria-expanded="false">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round"
-                        class="icon icon-tabler icons-tabler-outline icon-tabler-file-type-xls">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                        <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                        <path d="M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4" />
-                        <path d="M4 15l4 6" />
-                        <path d="M4 21l4 -6" />
-                        <path d="M17 20.25c0 .414 .336 .75 .75 .75h1.25a1 1 0 0 0 1 -1v-1a1 1 0 0 0 -1 -1h-1a1 1 0 0 1 -1 -1v-1a1 1 0 0 1 1 -1h1.25a.75 .75 0 0 1 .75 .75" />
-                        <path d="M11 15v6h3" />
-                    </svg>
-                    <span class="nav-link-title fw-bold">UPLOAD</span>
-                    </a>
-                </li>
-            </ul>
+            <ul class="navbar-nav d-flex flex-row align-items-center gap-4">
+              <!-- Menu Upload -->
+              <li class="nav-item">
+                <a class="nav-link d-flex align-items-center gap-2 fw-semibold" href="{{ url('/') }}">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+                      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                      stroke-linejoin="round" class="icon icon-tabler icon-tabler-file-upload">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                    <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+                    <path d="M12 11v6" />
+                    <path d="M9 14l3 -3l3 3" />
+                  </svg>
+                  <span>Upload</span>
+                </a>
+              </li>
 
+              <!-- Menu Change Password -->
+              <li class="nav-item">
+                <a class="nav-link d-flex align-items-center gap-1 fw-semibold" href="{{ route('password.change') }}">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                       viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                       class="me-1">
+                      <path d="M10 13v4" />
+                      <path d="M14 13v4" />
+                      <path d="M5 7h14" />
+                      <path d="M9 7v-2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v2" />
+                      <path d="M4 7v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-11" />
+                  </svg>
+                  <span>Change Password</span>
+                </a>
+              </li>
+
+            </ul>
         </div>
       </div>
     </div>

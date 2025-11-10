@@ -47,7 +47,8 @@ class ExcelUploadController extends Controller
             // Nama file: {TIN}S{MM}{YYYY}.DAT (mengikuti sample saat ini)
             $ownerTin = preg_replace('/\D/', '', $parsed['header']['tin'] ?? 'TIN');
             $period   = $parsed['header']['period_end'] ?? $parsed['header']['month'] ?? $parsed['header']['period'] ?? $parsed['header']['date'] ?? '01/01/1970';
-            
+            $monthFormat5 = $parsed['header']['month_format_5'] ?? '';
+
             if (($format === 3 || $format === 4 || $format === 5 ) && preg_match('/^(\d{2})\/(\d{4})$/', $period, $m)) {
                 [$mm, $yyyy] = [$m[1], $m[2]];
             } else if ($format === 6) {
@@ -70,7 +71,7 @@ class ExcelUploadController extends Controller
                 2 => "P{$mm}{$yyyy}",
                 3 => "0000{$mm}{$yyyy}1702Q",
                 4 => "0000{$mm}{$yyyy}1701Q",
-                5 => "0000{$mm}{$yyyy}1601EQ",
+                5 => "0000{$monthFormat5}{$yyyy}1601EQ",
                 6 => "0000{$mm}{$dd}{$yyyy}1604E",
                 default => throw new \RuntimeException("Unknown format {$format}."),
             };
@@ -928,149 +929,190 @@ class ExcelUploadController extends Controller
      *  FORMAT 5 (1601EQ)
      * ========================= */
 
-    private function parseFormat5(array $rows): array
-    {
-        // 1) Periode global
-        $period = $this->extractGlobalMonthToken($rows); // MM/YYYY
+private function parseFormat5(array $rows): array
+{
+    // 1) Periode global
+    $period = $this->extractGlobalMonthToken($rows); // MM/YYYY
 
-        // 2) Header: TIN + branch + agent name
-        $tinHeader = '000000000'; $branchHeader = '0000'; $agentName = '';
+    // 2) Header: TIN + branch + agent name
+    $tinHeader = '000000000'; 
+    $branchHeader = '0000'; 
+    $agentName = '';
 
-        // TIN : 008740080-0000
-        foreach ($rows as $r) {
-            foreach ($r as $cell) {
-                if (!is_string($cell)) continue;
-                if (stripos($cell, 'TIN') === 0) {
-                    $digits = preg_replace('/[^0-9\-]/', '', $cell);
-                    if (preg_match('/(\d+)\-(\d{4})/', $digits, $m)) {
-                        $tinHeader    = $this->tinBase9($m[1]);
-                        $branchHeader = $m[2];
-                    } else {
-                        $tinHeader = $this->tinBase9($digits);
-                    }
-                    break 2;
+    // TIN : 008740080-0000
+    foreach ($rows as $r) {
+        foreach ($r as $cell) {
+            if (!is_string($cell)) continue;
+            if (stripos($cell, 'TIN') === 0) {
+                $digits = preg_replace('/[^0-9\-]/', '', $cell);
+                if (preg_match('/(\d+)\-(\d{4})/', $digits, $m)) {
+                    $tinHeader    = $this->tinBase9($m[1]);
+                    $branchHeader = $m[2];
+                } else {
+                    $tinHeader = $this->tinBase9($digits);
                 }
+                break 2;
             }
         }
-
-        // Withholding Agent Name (ambil dari label umum; kalau ga ketemu pakai nama detail pertama)
-        foreach ($rows as $r) {
-            foreach ($r as $cell) {
-                if (!is_string($cell)) continue;
-                if (preg_match('/WITH(H)?OLDING\s+AGENT.*?:/i', $cell) ||
-                    preg_match("/AGENT'S\s*NAME\s*:/i", $cell) ||
-                    preg_match('/COMPANY\s+NAME\s*:/i', $cell) ||
-                    preg_match('/TAXPAYER\s+NAME\s*:/i', $cell)) {
-                    $val = trim(preg_replace('/^.*?:/i', '', $cell));
-                    $agentName = $this->cleanText($val, false);
-                    break 2;
-                }
-            }
-        }
-
-        // 3) Detail mapping (kolom A..O):
-        // A: SEQNO
-        // B: TIN detail (000-000-000-0000)
-        // C: NAME (Withholding Agent / Payee name) -> dibersihkan
-        // E: ATC CODE
-        // F: NATURE OF PAYMENT (diabaikan)
-        // G/H/I: 1st month (amount / rate / withheld)
-        // J/K/L: 2nd month (amount / rate / withheld)
-        // M/N/O: 3rd month (amount / rate / withheld)
-        $details = [];
-        $sumAmt = 0.0; $sumWh = 0.0;
-
-        foreach ($rows as $r) {
-            $seqRaw  = (string)($r['A'] ?? '');
-            $tinRaw  = (string)($r['B'] ?? '');
-            $nameRaw = (string)($r['C'] ?? '');
-            $atcRaw  = (string)($r['E'] ?? '');
-            $nature  = (string)($r['F'] ?? '');
-
-            $amt1 = (string)($r['G'] ?? '');
-            $rate1= (string)($r['H'] ?? '');
-            $wh1  = (string)($r['I'] ?? '');
-
-            $amt2 = (string)($r['J'] ?? '');
-            $rate2= (string)($r['K'] ?? '');
-            $wh2  = (string)($r['L'] ?? '');
-
-            $amt3 = (string)($r['M'] ?? '');
-            $rate3= (string)($r['N'] ?? '');
-            $wh3  = (string)($r['O'] ?? '');
-
-            // Filter baris sampah/header/total
-            if ($this->isRowJunk($seqRaw, $tinRaw, $nameRaw, $atcRaw, $nature)) continue;
-
-            // SEQNO wajib ada (dari kolom A), tapi boleh string/angka
-            $seq = trim($seqRaw);
-            if ($seq === '') continue;
-
-            // TIN base + branch
-            $digitsAll = preg_replace('/[^0-9\-]/', '', $tinRaw);
-            $tinBase   = $this->tinBase9($digitsAll);
-            $branchDet = '0000';
-            if (preg_match('/\-(\d{4})$/', $digitsAll, $m)) $branchDet = $m[1];
-
-            // Nama & ATC
-            $name = $this->cleanText($nameRaw, false);
-            if ($agentName === '' && $name !== '') $agentName = $name; // fallback header name
-            $atc  = strtoupper(trim($atcRaw));
-
-            // Rate fallback H -> K -> N -> 0
-            $rate = $this->toDec($rate1);
-            if ($rate == 0.0) $rate = $this->toDec($rate2);
-            if ($rate == 0.0) $rate = $this->toDec($rate3);
-
-            // Amount fallback G -> J -> M -> 0
-            $amt = $this->toDec($amt1);
-            if ($amt == 0.0) { $tmp = $this->toDec($amt2); if ($tmp != 0.0) $amt = $tmp; }
-            if ($amt == 0.0) { $tmp = $this->toDec($amt3); if ($tmp != 0.0) $amt = $tmp; }
-
-            // Withheld fallback I -> L -> O -> 0
-            $wh = $this->toDec($wh1);
-            if ($wh == 0.0) { $tmp = $this->toDec($wh2); if ($tmp != 0.0) $wh = $tmp; }
-            if ($wh == 0.0) { $tmp = $this->toDec($wh3); if ($tmp != 0.0) $wh = $tmp; }
-
-            // Validasi minimal: ada TIN atau ada angka; kalau nihil semua, skip
-            $hasTin = (bool)preg_match('/\d/', $tinRaw);
-            $hasNum = ($amt != 0.0 || $wh != 0.0 || $rate != 0.0);
-            if (!$hasTin && !$hasNum) continue;
-
-            $details[] = [
-                'seq'      => $seq,
-                'tin'      => $tinBase,
-                'branch'   => $branchDet,
-                'name'     => $name,
-                'period'   => $period,     // semua detail: sama dengan header
-                'atc'      => $atc,
-                'rate'     => $rate,
-                'amount'   => $amt,
-                'withheld' => $wh,
-            ];
-            $sumAmt += $amt; $sumWh += $wh;
-        }
-
-        if ($agentName === '') $agentName = '';
-
-        return [
-            'header' => [
-                'tin'    => $tinHeader,
-                'branch' => $branchHeader,
-                'agent'  => $agentName,
-                'period' => $period,
-                'code'   => '033',
-            ],
-            'details' => $details,
-            'control' => [
-                'tin'    => $tinHeader,
-                'branch' => $branchHeader,
-                'period' => $period,
-                'sumAmt' => $sumAmt,
-                'sumWh'  => $sumWh,
-            ],
-        ];
     }
+
+    // Withholding Agent Name
+    foreach ($rows as $r) {
+        foreach ($r as $cell) {
+            if (!is_string($cell)) continue;
+            if (preg_match('/WITH(H)?OLDING\s+AGENT.*?:/i', $cell)
+                || preg_match("/AGENT'S\s*NAME\s*:/i", $cell)
+                || preg_match('/COMPANY\s+NAME\s*:/i', $cell)
+                || preg_match('/TAXPAYER\s+NAME\s*:/i', $cell)
+            ) {
+                $val = trim(preg_replace('/^.*?:/i', '', $cell));
+                $agentName = $this->cleanText($val, false);
+                break 2;
+            }
+        }
+    }
+
+    $details = [];
+    $sumAmt = 0.0; 
+    $sumWh = 0.0;
+    $headerMonthCode = null;   // nanti diisi dari baris pertama yang valid
+
+    foreach ($rows as $r) {
+        $seqRaw  = (string)($r['A'] ?? '');
+        $tinRaw  = (string)($r['B'] ?? '');
+        $nameRaw = (string)($r['C'] ?? '');
+        $atcRaw  = (string)($r['E'] ?? '');
+        $nature  = (string)($r['F'] ?? '');
+
+        $amt1 = (string)($r['G'] ?? '');
+        $rate1= (string)($r['H'] ?? '');
+        $wh1  = (string)($r['I'] ?? '');
+
+        $amt2 = (string)($r['J'] ?? '');
+        $rate2= (string)($r['K'] ?? '');
+        $wh2  = (string)($r['L'] ?? '');
+
+        $amt3 = (string)($r['M'] ?? '');
+        $rate3= (string)($r['N'] ?? '');
+        $wh3  = (string)($r['O'] ?? '');
+
+        // Filter baris sampah/header/total
+        if ($this->isRowJunk($seqRaw, $tinRaw, $nameRaw, $atcRaw, $nature)) continue;
+
+        $seq = trim($seqRaw);
+        if ($seq === '') continue;
+
+        // TIN base + branch
+        $digitsAll = preg_replace('/[^0-9\-]/', '', $tinRaw);
+        $tinBase   = $this->tinBase9($digitsAll);
+        $branchDet = '0000';
+        if (preg_match('/\-(\d{4})$/', $digitsAll, $m)) {
+            $branchDet = $m[1];
+        }
+
+        $name = $this->cleanText($nameRaw, false);
+        if ($agentName === '' && $name !== '') {
+            $agentName = $name; // fallback header name
+        }
+        $atc  = strtoupper(trim($atcRaw));
+
+        // --- BULAN DARI RATE ---
+        $r1 = $this->toDec($rate1);
+        $r2 = $this->toDec($rate2);
+        $r3 = $this->toDec($rate3);
+
+        // logika: kolom yang KEISI itulah bulannya
+        if ($r1 != 0.0) {
+            $monthCode = '04'; // April
+        } elseif ($r2 != 0.0) {
+            $monthCode = '05'; // May
+        } elseif ($r3 != 0.0) {
+            $monthCode = '06'; // June
+        } else {
+            $monthCode = '00'; // gak ketebak
+        }
+
+        // simpan ke header kalau belum ada
+        if ($headerMonthCode === null && $monthCode !== '00') {
+            $headerMonthCode = $monthCode;
+        }
+
+        // Rate fallback H -> K -> N -> 0
+        $rate = $r1;
+        if ($rate == 0.0) $rate = $r2;
+        if ($rate == 0.0) $rate = $r3;
+
+        // Amount fallback G -> J -> M -> 0
+        $amt = $this->toDec($amt1);
+        if ($amt == 0.0) {
+            $tmp = $this->toDec($amt2);
+            if ($tmp != 0.0) $amt = $tmp;
+        }
+        if ($amt == 0.0) {
+            $tmp = $this->toDec($amt3);
+            if ($tmp != 0.0) $amt = $tmp;
+        }
+
+        // Withheld fallback I -> L -> O -> 0
+        $wh = $this->toDec($wh1);
+        if ($wh == 0.0) {
+            $tmp = $this->toDec($wh2);
+            if ($tmp != 0.0) $wh = $tmp;
+        }
+        if ($wh == 0.0) {
+            $tmp = $this->toDec($wh3);
+            if ($tmp != 0.0) $wh = $tmp;
+        }
+
+        // Validasi minimal
+        $hasTin = (bool)preg_match('/\d/', $tinRaw);
+        $hasNum = ($amt != 0.0 || $wh != 0.0 || $rate != 0.0);
+        if (!$hasTin && !$hasNum) continue;
+
+        $details[] = [
+            'seq'      => $seq,
+            'tin'      => $tinBase,
+            'branch'   => $branchDet,
+            'name'     => $name,
+            'period'   => $period,
+            'atc'      => $atc,
+            'rate'     => $rate,
+            'amount'   => $amt,
+            'withheld' => $wh,
+        ];
+        $sumAmt += $amt; 
+        $sumWh  += $wh;
+    }
+
+    if ($agentName === '') {
+        $agentName = '';
+    }
+
+    // kalau sepanjang sheet gak ketemu bulan, pakai '00'
+    if ($headerMonthCode === null) {
+        $headerMonthCode = '00';
+    }
+
+    return [
+        'header' => [
+            'tin'             => $tinHeader,
+            'branch'          => $branchHeader,
+            'agent'           => $agentName,
+            'period'          => $period,
+            'code'            => '033',
+            'month_format_5'  => $headerMonthCode, // ← ini sekarang bener
+        ],
+        'details' => $details,
+        'control' => [
+            'tin'    => $tinHeader,
+            'branch' => $branchHeader,
+            'period' => $period,
+            'sumAmt' => $sumAmt,
+            'sumWh'  => $sumWh,
+        ],
+    ];
+}
+
 
     private function buildDatContentFormat5(array $parsed): string
     {
