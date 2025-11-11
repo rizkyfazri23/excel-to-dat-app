@@ -71,7 +71,7 @@ class ExcelUploadController extends Controller
                 2 => "P{$mm}{$yyyy}",
                 3 => "0000{$mm}{$yyyy}1702Q",
                 4 => "0000{$mm}{$yyyy}1701Q",
-                5 => "0000{$monthFormat5}{$yyyy}1601EQ",
+                5 => "0000{$mm}{$yyyy}1601EQ",
                 6 => "0000{$mm}{$dd}{$yyyy}1604E",
                 default => throw new \RuntimeException("Unknown format {$format}."),
             };
