@@ -1224,7 +1224,6 @@ private function parseFormat5(array $rows): array
             // Registered name (bersihin)
             $regName = $this->cleanText($nameRaw, false);
 
-            // Kolom angka/ATC fleksibel: coba slot (E,F,G,H) → (F,G,H,I) → (G,H,I,J)
             $slots = [
                 ['E','F','G','H'],
                 ['F','G','H','I'],
@@ -1232,24 +1231,35 @@ private function parseFormat5(array $rows): array
             ];
             $atc=''; $amt=0.0; $rate=0.0; $wh=0.0;
 
-            foreach ($slots as [$cAtc,$cAmt,$cRate,$cWh]) {
+           foreach ($slots as [$cAtc,$cAmt,$cRate,$cWh]) {
                 $atcTry  = strtoupper(trim((string)($r[$cAtc] ?? '')));
                 $amtTry  = $this->toDec((string)($r[$cAmt] ?? ''));
                 $rateTry = $this->toDec((string)($r[$cRate] ?? ''));
-                $whTry   = $this->toDec((string)($r[$cWh] ?? ''));
+                // $whTry   = $this->toDec((string)($r[$cWh] ?? ''));  // sudah tidak dipakai
 
-                // ambil kalau salah satu meaningful
                 if ($atc === '' && $atcTry !== '') $atc = $atcTry;
                 if ($amt == 0.0 && $amtTry != 0.0)   $amt = $amtTry;
                 if ($rate == 0.0 && $rateTry != 0.0) $rate = $rateTry;
-                if ($wh == 0.0 && $whTry != 0.0)     $wh = $whTry;
 
-                // early exit kalau sudah dapat semua
-                if ($atc !== '' && ($amt != 0.0 || $wh != 0.0 || $rate != 0.0)) break;
+                // begitu kita sudah punya ATC dan minimal ada angka, boleh keluar dari loop
+                if ($atc !== '' && ($amt != 0.0 || $rate != 0.0)) break;
             }
 
-            // Kalau semuanya kosong, tetep 0.00 (sesuai kebijakan kamu)
-            // Filter minimal: ada TIN atau ada angka; kalau nihil semua, skip
+            /**
+             * NOTE:
+             * $rate yang kamu simpan sebaiknya dalam satuan persen:
+             *  - 1.5  artinya 1.5%
+             *  - 10   artinya 10%
+             * Jadi rumusnya amount * (rate / 100)
+             */
+
+            // hitung ulang WHT dari amount & rate persen
+            if ($amt != 0.0 && $rate != 0.0) {
+                $wh = round($amt * ($rate / 100), 2);
+            } else {
+                $wh = 0.0;
+            }
+
             $hasTin = (bool)preg_match('/\d/', $tinRaw);
             $hasNum = ($amt != 0.0 || $wh != 0.0 || $rate != 0.0);
             if (!$hasTin && !$hasNum) continue;
@@ -1264,10 +1274,12 @@ private function parseFormat5(array $rows): array
                 'name'     => $regName,
                 'atc'      => $atc,
                 'amount'   => $amt,
-                'rate'     => $rate,
-                'withheld' => $wh,
+                'rate'     => $rate,      
+                'withheld' => $wh,      
             ];
+
             $sumWithheld += $wh;
+
         }
 
         return [
@@ -1362,9 +1374,7 @@ private function parseFormat5(array $rows): array
             $s = trim($s, " ()");
         }
 
-        // buang huruf/simbol kecuali digit, koma, titik, minus
         $s = preg_replace('/[^\d\-,\.]/', '', $s);
-        // hilangkan pemisah ribuan koma
         $s = str_replace(',', '', $s);
 
         if ($s === '' || $s === '-' || $s === '.') return 0.0;
